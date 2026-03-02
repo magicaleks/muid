@@ -250,13 +250,13 @@ class MagicID:
         @classmethod
         def __get_pydantic_core_schema__(
             cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
-        ) -> pydantic.CoreSchema:
+        ) -> pydantic_core.CoreSchema:
             muid_schema = pydantic_core.core_schema.no_info_plain_validator_function(
                 cls._pydantic_validate,
                 serialization=pydantic_core.core_schema.to_string_ser_schema(),
             )
 
-            return pydantic_core.pydantic_corecore_schema.json_or_python_schema(
+            return pydantic_core.core_schema.json_or_python_schema(
                 json_schema=pydantic_core.core_schema.str_schema(),
                 python_schema=pydantic_core.core_schema.union_schema(
                     [
