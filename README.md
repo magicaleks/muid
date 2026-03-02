@@ -1,7 +1,7 @@
 # MUID (Magic Unique Identifier)
 
-[![CI](https://github.com/muid/moon/actions/workflows/ci.yml/badge.svg)](https://github.com/magicaleks/muid/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/muid)](https://pypi.org/project/muid/)
+[![CI](https://github.com/magicaleks/muid/actions/workflows/ci.yml/badge.svg)](https://github.com/magicaleks/muid/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/magicid)](https://pypi.org/project/magicid/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
