@@ -27,10 +27,15 @@ Homepage = "https://github.com/magicaleks/muid"
 Issues = "https://github.com/magicaleks/muid/issues"
 
 [project.optional-dependencies]
+pydantic = [
+  "pydantic>=2,<3"
+]
+
 dev = [
   "pytest>=8",
   "ruff>=0.2",
   "mypy>=1.8",
+  "pydantic>=2,<3"
 ]
 
 [tool.setuptools.packages.find]

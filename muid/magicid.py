@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
-Tools for working with MUID.
+Python tools for working with MUID.
 """
 
 import os
@@ -12,6 +12,17 @@ from typing import Any, AnyStr, Final, Optional, Self, Union
 
 MAX_COUNTER: Final[int] = 8191
 EPOCH_START: Final[int] = 1772312400000  # 1st march of 2026
+
+
+try:
+    import pydantic
+    import pydantic_core
+except ImportError:
+    pydantic = None
+    pydantic_core = None
+    _PYDANTIC_AVAILABLE = False
+else:
+    _PYDANTIC_AVAILABLE = True
 
 
 class InvalidMagicID(Exception):
@@ -66,7 +77,7 @@ class MagicID:
         >> MagicID("0001-8EA1C900-9D6F84CC-74E81A7A")
         >> 0001-8EA1C900-9D6F84CC-74E81A7A
 
-        >> MagicID(b"\x00\x01\x8f\xadV\xc0\xca\xaf\xd8\x06\x08\xa1\xd2)")
+        >> MagicID(rb"\x00\x01\x8f\xadV\xc0\xca\xaf\xd8\x06\x08\xa1\xd2)")
         >> 0001-8FAD56C0-CAAFD806-08A1D229
         """
         if muid is None:
@@ -80,41 +91,6 @@ class MagicID:
     def raw(self) -> bytes:
         """Return binary MagicID representation."""
         return self.__muid
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid == other.raw
-        elif self.is_valid(other):
-            return self.__muid == MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __ne__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid != other.raw
-        elif self.is_valid(other):
-            return self.__muid != MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __gt__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid > other.raw
-        elif self.is_valid(other):
-            return self.__muid > MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __lt__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid < other.raw
-        elif self.is_valid(other):
-            return self.__muid < MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __len__(self) -> int:
-        return 31
 
     def __validate(self, muid: Any) -> None:
         """
@@ -158,6 +134,8 @@ class MagicID:
     def from_datetime(cls, date_or_ts: Union[datetime, int]) -> Self:
         """
         Create a new MagicID from a given datetime or timestamp.
+
+        Be careful: when using `from_datetime` the timestamp will not be truncated at the `EPOCH_START`.
         :param date_or_ts: datetime or ms timestamp.
         :return: new MagicID.
         """
@@ -203,6 +181,54 @@ class MagicID:
 
             return val.to_bytes(14, "big")
 
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, type(self)):
+            return self.__muid == other.__muid
+        elif self.is_valid(other):
+            return self.__muid == MagicID(other).raw
+        else:
+            raise NotImplementedError
+
+    def __ne__(self, other: Any) -> bool:
+        if isinstance(other, MagicID):
+            return self.__muid != other.raw
+        elif self.is_valid(other):
+            return self.__muid != MagicID(other).raw
+        else:
+            raise NotImplementedError
+
+    def __gt__(self, other: Any) -> bool:
+        if isinstance(other, MagicID):
+            return self.__muid > other.raw
+        elif self.is_valid(other):
+            return self.__muid > MagicID(other).raw
+        else:
+            raise NotImplementedError
+
+    def __lt__(self, other: Any) -> bool:
+        if isinstance(other, MagicID):
+            return self.__muid < other.raw
+        elif self.is_valid(other):
+            return self.__muid < MagicID(other).raw
+        else:
+            raise NotImplementedError
+
+    def __ge__(self, other: Any) -> bool:
+        if isinstance(other, MagicID):
+            return self.__muid >= other.raw
+        elif self.is_valid(other):
+            return self.__muid >= MagicID(other).raw
+        else:
+            raise NotImplementedError
+
+    def __le__(self, other: Any) -> bool:
+        if isinstance(other, MagicID):
+            return self.__muid <= other.raw
+        elif self.is_valid(other):
+            return self.__muid <= MagicID(other).raw
+        else:
+            raise NotImplementedError
+
     def __str__(self) -> str:
         h = self.__muid.hex().upper()
         return f"{h[:4]}-{h[4:12]}-{h[12:20]}-{h[20:]}"
@@ -212,3 +238,40 @@ class MagicID:
 
     def __bytes__(self) -> bytes:
         return self.__muid
+
+    def __int__(self) -> int:
+        return int.from_bytes(self.__muid, "big")
+
+    def __hash__(self) -> int:
+        return hash(self.__muid)
+
+    if _PYDANTIC_AVAILABLE:
+
+        @classmethod
+        def __get_pydantic_core_schema__(
+            cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
+        ) -> pydantic.CoreSchema:
+            muid_schema = pydantic_core.core_schema.no_info_plain_validator_function(
+                cls._pydantic_validate,
+                serialization=pydantic_core.core_schema.to_string_ser_schema(),
+            )
+
+            return pydantic_core.pydantic_corecore_schema.json_or_python_schema(
+                json_schema=pydantic_core.core_schema.str_schema(),
+                python_schema=pydantic_core.core_schema.union_schema(
+                    [
+                        pydantic_core.core_schema.is_instance_schema(cls),
+                        muid_schema,
+                    ]
+                ),
+                serialization=pydantic_core.core_schema.to_string_ser_schema(),
+            )
+
+        @classmethod
+        def _pydantic_validate(cls, value: Any) -> Self:
+            if isinstance(value, cls):
+                return value
+            try:
+                return cls(value)
+            except (InvalidMagicID, Exception) as e:
+                raise pydantic.ValidationError(str(e))
