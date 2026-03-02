@@ -1,9 +1,10 @@
 import time
 from datetime import datetime
+from typing import Any
 
 import pytest
 
-from muid import MagicID
+from muid import InvalidMagicID, MagicID
 from tests.conftest import FakeClock, unpack_id
 
 
@@ -15,8 +16,17 @@ def test_muid():
     assert muid_2 != muid
     assert muid_2 > muid
     assert muid < muid_2
-    assert muid == MagicID(muid) == MagicID(muid.raw)
+    assert muid == MagicID(muid) == MagicID(muid.raw) == MagicID(str(muid))
     assert muid.raw == bytes(muid)
+
+
+@pytest.mark.parametrize(
+    "val",
+    ["0002A2011D800081B3FFC812A17E", "0002A2011D8000----81B3FFC812A17E", "", None],
+)
+def test_validation_negative(val: Any):
+    with pytest.raises(InvalidMagicID):
+        MagicID(val)
 
 
 def test_counter():

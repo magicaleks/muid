@@ -8,7 +8,9 @@ import threading
 import time
 from datetime import datetime
 from types import NoneType
-from typing import Any, AnyStr, Final, Optional, Self, Union
+from typing import Any, Final, Optional, Self, Union
+
+from .utils import _UNSET
 
 MAX_COUNTER: Final[int] = 8191
 EPOCH_START: Final[int] = 1772312400000  # 1st march of 2026
@@ -28,7 +30,7 @@ else:
 class InvalidMagicID(Exception):
     """Raised when got invalid MagicID."""
 
-    def __init__(self, muid: AnyStr) -> None:
+    def __init__(self, muid: Any) -> None:
         self.muid = muid
 
     def __str__(self) -> str:
@@ -58,7 +60,7 @@ class MagicID:
 
     __slots__ = ("__muid",)
 
-    def __init__(self, muid: Optional[Any] = None) -> None:
+    def __init__(self, muid: Any = _UNSET) -> None:
         """
         Initialize a new MagicID.
         :param muid: Optional already generated MagicID.
@@ -80,7 +82,7 @@ class MagicID:
         >> MagicID(rb"\x00\x01\x8f\xadV\xc0\xca\xaf\xd8\x06\x08\xa1\xd2)")
         >> 0001-8FAD56C0-CAAFD806-08A1D229
         """
-        if muid is None:
+        if muid is _UNSET:
             self.__muid = self.__magic()
         elif isinstance(muid, bytes) and len(muid) == 14:
             self.__muid = muid
@@ -104,7 +106,9 @@ class MagicID:
         elif isinstance(muid, str):
             if len(muid) == 31:
                 try:
-                    self.__muid = bytes.fromhex(muid.replace("-", "").lower())
+                    self.__muid = bytes.fromhex(
+                        muid[:4] + muid[5:13] + muid[14:22] + muid[23:].lower()
+                    )
                 except (TypeError, ValueError):
                     raise InvalidMagicID(muid)
             else:
@@ -275,3 +279,6 @@ class MagicID:
                 return cls(value)
             except (InvalidMagicID, Exception) as e:
                 raise pydantic.ValidationError(str(e))
+
+
+MagicID(None)
