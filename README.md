@@ -29,6 +29,27 @@ print(muid)
 # 0001-8EA1C900-0F6F8410-1E7C1CA4
 ```
 
+## Использование в `Pydantic`
+
+```python
+from muid import MagicID
+from pydantic import BaseModel, Field
+
+
+class User(BaseModel):
+    id: MagicID = Field(default_factory=MagicID)
+    
+user = User()
+print(user.id)
+# 0001-8EA1C900-0F6F8410-1E7C1CA4
+
+json_user = {"id": "0001-8EA1C900-0F6F8410-1E7C1CA4"}
+
+user = User.model_validate(json_user)
+print(user.id)
+# 0001-8EA1C900-0F6F8410-1E7C1CA4
+```
+
 ## Принцип работы
 
 MUID состоит из 4 частей:
