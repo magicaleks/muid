@@ -279,6 +279,3 @@ class MagicID:
                 return cls(value)
             except (InvalidMagicID, Exception) as e:
                 raise pydantic.ValidationError(str(e))
-
-
-MagicID(None)
