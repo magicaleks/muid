@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "muid"
+version = "1.0.0"
+description = "MUID (Magic Unique Identifier) library"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "Aleksandr @magicaleks", email = "aleksandr@magicaleks.me" }
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: Apache Software License",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/magicaleks/muid"
+Issues = "https://github.com/magicaleks/muid/issues"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "ruff>=0.2",
+  "mypy>=1.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["muid*"]
