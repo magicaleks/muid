@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "magicid"
-version = "1.1.0"
+version = "1.2.0"
 description = "MUID (Magic Unique Identifier) library"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,6 +37,9 @@ dev = [
   "mypy>=1.8",
   "pydantic>=2,<3"
 ]
+
+[project.scripts]
+muid = "muid.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
