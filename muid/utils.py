@@ -3,6 +3,4 @@
 MagicID utils.
 """
 
-from typing import TypeVar
-
-_UNSET = TypeVar("_UNSET")
+_UNSET = object()

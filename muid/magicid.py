@@ -7,7 +7,6 @@ import os
 import threading
 import time
 from datetime import datetime
-from types import NoneType
 from typing import Any, Final, Optional, Self, Union
 
 from .utils import _UNSET
@@ -27,7 +26,7 @@ else:
     _PYDANTIC_AVAILABLE = True
 
 
-class InvalidMagicID(Exception):
+class InvalidMagicID(ValueError):
     """Raised when got invalid MagicID."""
 
     def __init__(self, muid: Any) -> None:
@@ -103,16 +102,19 @@ class MagicID:
 
         if isinstance(muid, MagicID):
             self.__muid = muid.raw
-        elif isinstance(muid, str):
-            if len(muid) == 31:
-                try:
-                    self.__muid = bytes.fromhex(
-                        muid[:4] + muid[5:13] + muid[14:22] + muid[23:].lower()
-                    )
-                except (TypeError, ValueError):
-                    raise InvalidMagicID(muid)
-            else:
+        elif (
+            isinstance(muid, str)
+            and len(muid) == 31
+            and muid[4] == muid[13] == muid[22] == "-"
+        ):
+            try:
+                raw = bytes.fromhex(muid[:4] + muid[5:13] + muid[14:22] + muid[23:])
+            except ValueError:
                 raise InvalidMagicID(muid)
+            # fromhex skips whitespace, so a 31-char string may decode to fewer bytes.
+            if len(raw) != 14:
+                raise InvalidMagicID(muid)
+            self.__muid = raw
         else:
             raise InvalidMagicID(muid)
 
@@ -123,9 +125,6 @@ class MagicID:
         :param muid: muid to validate.
         :return: is valid or not.
         """
-
-        if isinstance(muid, NoneType):
-            return False
 
         try:
             cls(muid)
@@ -138,100 +137,79 @@ class MagicID:
     def from_datetime(cls, date_or_ts: Union[datetime, int]) -> Self:
         """
         Create a new MagicID from a given datetime or timestamp.
-
-        Be careful: when using `from_datetime` the timestamp will not be truncated at the `EPOCH_START`.
-        :param date_or_ts: datetime or ms timestamp.
+        :param date_or_ts: datetime or unix ms timestamp.
+        :raises ValueError: Raised if timestamp is before `EPOCH_START` or out of 42 bits.
         :return: new MagicID.
         """
 
         if isinstance(date_or_ts, datetime):
             ts = int(date_or_ts.timestamp() * 1000)
         elif isinstance(date_or_ts, int):
-            if date_or_ts >= 2**42:
-                raise ValueError(
-                    f"Timestamp {date_or_ts} is too big. Must be lower than 2^42."
-                )
             ts = date_or_ts
         else:
             raise TypeError(f"Expected datetime or int but got {type(date_or_ts)}")
+
+        ts -= EPOCH_START
+        if not 0 <= ts < 2**42:
+            raise ValueError(f"Timestamp {date_or_ts} is out of MagicID range.")
 
         return cls(cls.__magic(ts=ts))
 
     @classmethod
     def __magic(cls, *, ts: Optional[int] = None) -> bytes:
-        with cls._lock:
-            ts = ts or cls.__timestamp()
-            if cls._last_ms == ts:
-                cls._counter += 1
-                if cls._counter > MAX_COUNTER:
-                    ms = cls.__timestamp()
-                    while ts == ms:
-                        ms = cls.__timestamp()
-                    ts = ms
+        counter = 0
+        if ts is None:
+            with cls._lock:
+                ts = max(cls.__timestamp(), cls._last_ms)
+                if ts == cls._last_ms:
+                    cls._counter += 1
+                    if cls._counter > MAX_COUNTER:
+                        while ts <= cls._last_ms:
+                            time.sleep(0.0001)
+                            ts = cls.__timestamp()
+                        cls._counter = 0
+                else:
                     cls._counter = 0
-            else:
-                cls._counter = 0
 
-            cls._last_ms = ts
+                cls._last_ms = ts
+                counter = cls._counter
 
-            rand = int.from_bytes(cls.__random(5), "big")
+        rand = int.from_bytes(cls.__random(5), "big")
 
-            val = (
-                (ts & 0x3FFFFFFFFFF) << 70
-                | (cls._counter & 0x1FFF) << 57
-                | (cls._proc_fn & 0x1FFFF) << 40
-                | (rand & 0xFFFFFFFFFF)
-            )
+        val = (
+            (ts & 0x3FFFFFFFFFF) << 70
+            | (counter & 0x1FFF) << 57
+            | (cls._proc_fn & 0x1FFFF) << 40
+            | (rand & 0xFFFFFFFFFF)
+        )
 
-            return val.to_bytes(14, "big")
+        return val.to_bytes(14, "big")
+
+    @classmethod
+    def _reseed(cls) -> None:
+        cls._proc_fn = int.from_bytes(cls.__random(3), "big") & 0x1FFFF
+        cls._lock = threading.Lock()
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, type(self)):
+        if isinstance(other, MagicID):
             return self.__muid == other.__muid
-        elif self.is_valid(other):
-            return self.__muid == MagicID(other).raw
-        else:
-            raise NotImplementedError
+        if isinstance(other, (str, bytes)):
+            try:
+                return self.__muid == MagicID(other).__muid
+            except InvalidMagicID:
+                return False
+        return NotImplemented
 
-    def __ne__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid != other.raw
-        elif self.is_valid(other):
-            return self.__muid != MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __gt__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid > other.raw
-        elif self.is_valid(other):
-            return self.__muid > MagicID(other).raw
-        else:
-            raise NotImplementedError
-
+    # `>` and `>=` resolve to the reflected `__lt__` and `__le__`.
     def __lt__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid < other.raw
-        elif self.is_valid(other):
-            return self.__muid < MagicID(other).raw
-        else:
-            raise NotImplementedError
-
-    def __ge__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid >= other.raw
-        elif self.is_valid(other):
-            return self.__muid >= MagicID(other).raw
-        else:
-            raise NotImplementedError
+        if not isinstance(other, MagicID):
+            return NotImplemented
+        return self.__muid < other.__muid
 
     def __le__(self, other: Any) -> bool:
-        if isinstance(other, MagicID):
-            return self.__muid <= other.raw
-        elif self.is_valid(other):
-            return self.__muid <= MagicID(other).raw
-        else:
-            raise NotImplementedError
+        if not isinstance(other, MagicID):
+            return NotImplemented
+        return self.__muid <= other.__muid
 
     def __str__(self) -> str:
         h = self.__muid.hex().upper()
@@ -255,27 +233,19 @@ class MagicID:
         def __get_pydantic_core_schema__(
             cls, source_type: Any, handler: pydantic.GetCoreSchemaHandler
         ) -> pydantic_core.CoreSchema:
-            muid_schema = pydantic_core.core_schema.no_info_plain_validator_function(
-                cls._pydantic_validate,
-                serialization=pydantic_core.core_schema.to_string_ser_schema(),
-            )
-
             return pydantic_core.core_schema.json_or_python_schema(
-                json_schema=pydantic_core.core_schema.str_schema(),
+                json_schema=pydantic_core.core_schema.no_info_after_validator_function(
+                    cls, pydantic_core.core_schema.str_schema()
+                ),
                 python_schema=pydantic_core.core_schema.union_schema(
                     [
                         pydantic_core.core_schema.is_instance_schema(cls),
-                        muid_schema,
+                        pydantic_core.core_schema.no_info_plain_validator_function(cls),
                     ]
                 ),
                 serialization=pydantic_core.core_schema.to_string_ser_schema(),
             )
 
-        @classmethod
-        def _pydantic_validate(cls, value: Any) -> Self:
-            if isinstance(value, cls):
-                return value
-            try:
-                return cls(value)
-            except (InvalidMagicID, Exception) as e:
-                raise pydantic.ValidationError(str(e))
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=MagicID._reseed)

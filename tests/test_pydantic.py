@@ -1,6 +1,7 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+import pytest
+from pydantic import BaseModel, Field, ValidationError
 
 from muid import MagicID
 
@@ -42,6 +43,28 @@ def test_str_bytes_validation():
     obj2 = TestModel.model_validate({"uid": bytes(muid)})
 
     assert muid == obj1.uid == obj2.uid
+
+
+def test_json_validation():
+    class TestModel(BaseModel):
+        uid: MagicID
+
+    muid = MagicID()
+
+    obj = TestModel.model_validate_json(f'{{"uid": "{muid}"}}')
+
+    assert isinstance(obj.uid, MagicID)
+    assert obj.uid == muid
+
+
+def test_invalid():
+    class TestModel(BaseModel):
+        uid: MagicID
+
+    with pytest.raises(ValidationError):
+        TestModel(uid="garbage")
+    with pytest.raises(ValidationError):
+        TestModel.model_validate_json('{"uid": "garbage"}')
 
 
 def test_serialization():

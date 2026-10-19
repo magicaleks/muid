@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/magicaleks/muid/actions/workflows/ci.yml/badge.svg)](https://github.com/magicaleks/muid/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/magicid)](https://pypi.org/project/magicid/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Библиотека для работы с уникальными идентификаторами MUID.
@@ -10,7 +10,7 @@
 ## Почему MUID?
 1. Всегда уникален даже в распределённой системе. Позволяет генерировать MUID на клиенте без обращения к серверу.
 2. Монотонен. TS метка и счётчик позволяют оптимально добавлять новые записи в B-Tree.
-3. Подходит для распределённых и высоконагруженных систем. Каждый процесс получает свой отпечаток. Счётчик позволяет генерировать минимум 33554432 уникальных MUID в рамках одной миллисекунды.
+3. Подходит для распределённых и высоконагруженных систем. Каждый процесс получает свой отпечаток. Счётчик позволяет генерировать до 8192 уникальных MUID в миллисекунду на каждый процесс.
 4. Мало предсказуем, даже зная `ts` и `proc_fn` математически сложно угадать следующий MUID за счёт `secure rand`. **ВАЖНО:** размер и стойкость `secure rand` может меняться в будущих версиях. Для реальной энтропии требуется от 36 битов, я взял 40 бит.
 
 ## Быстрый старт
@@ -59,6 +59,24 @@ user = User.model_validate(json_user)
 print(user.id)
 # 0001-8EA1C900-0F6F8410-1E7C1CA4
 ```
+
+## Сравнение
+
+```python
+from datetime import datetime
+from muid import MagicID
+
+muid = MagicID()
+
+muid == str(muid)  # True
+muid == muid.raw  # True
+muid == None  # False
+MagicID() > muid  # True
+MagicID.from_datetime(datetime(2026, 3, 2)) < muid  # True
+muid < str(muid)  # TypeError: упорядочивание только между MagicID
+```
+
+Ключом `dict`/`set` служит только сам `MagicID`: по `str(muid)` или `muid.raw` запись не найдётся, используйте `MagicID(key)`.
 
 ## Принцип работы
 
